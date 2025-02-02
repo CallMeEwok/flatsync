@@ -167,10 +167,6 @@ class GenerateInviteScreenState extends State<GenerateInviteScreen> {
               const SizedBox(height: 16),
               Center(child: _buildQrImage()),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: generatedInviteCode != null ? () => _revokeInvite(generatedInviteCode!) : null,
-                child: const Text("Revoke Invite"),
-              ),
             ] else ...[
               const SizedBox(height: 16),
               const Text('No invite generated yet', textAlign: TextAlign.center),

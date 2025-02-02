@@ -36,28 +36,22 @@ class GenerateInviteScreenState extends State<GenerateInviteScreen> {
           .get();
 
       if (snapshot.docs.isEmpty) {
-        debugPrint("No active invite found for household ID: ${widget.householdId}");
+        debugPrint("❌ No active invite found for household ID: ${widget.householdId}");
         setState(() {
-          generatedInviteCode = null;
+          generatedInviteCode = "NO_INVITE_AVAILABLE";
         });
         return;
       }
 
       var inviteData = snapshot.docs.first.data() as Map<String, dynamic>;
-        debugPrint("Invite Data Retrieved: $inviteData");
+      debugPrint("✅ Invite Data Retrieved: $inviteData");
 
-        // Ensure 'expiresAt' exists before using it
-        if (!inviteData.containsKey("expiresAt")) {
-          debugPrint("⚠️ Missing field 'expiresAt' in Firestore document. Skipping...");
-          return;
-        }
-
-        setState(() {
-          generatedInviteCode = inviteData["inviteCode"] ?? "UNKNOWN_INVITE_CODE";
-        });
+      setState(() {
+        generatedInviteCode = inviteData["inviteCode"] ?? "UNKNOWN_INVITE_CODE";
+      });
 
     } catch (e) {
-      debugPrint("Error fetching invite: $e");
+      debugPrint("❌ Error fetching invite: $e");
     }
   }
 
@@ -117,8 +111,7 @@ class GenerateInviteScreenState extends State<GenerateInviteScreen> {
         );
       }
 
-      // Refresh the invite list after deletion
-      fetchLatestInvite();
+      fetchLatestInvite(); // Refresh after deletion
     } catch (e) {
       debugPrint("❌ Error revoking invite: $e");
       if (mounted) {
@@ -126,6 +119,25 @@ class GenerateInviteScreenState extends State<GenerateInviteScreen> {
           SnackBar(content: Text('Failed to revoke invite: $e')),
         );
       }
+    }
+  }
+
+  Widget _buildQrImage() {
+    debugPrint("🔍 QrImageView trying to render: $generatedInviteCode");
+
+    if (generatedInviteCode == null || generatedInviteCode!.isEmpty) {
+      debugPrint("⚠️ QrImageView skipped due to null/empty invite code.");
+      return const Text("No QR Code Available", textAlign: TextAlign.center);
+    }
+
+    try {
+      return QrImageView(
+        data: generatedInviteCode!,
+        size: 200.0,
+      );
+    } catch (e) {
+      debugPrint("❌ QrImageView Crashed: $e");
+      return const Text("QR Code Rendering Failed", textAlign: TextAlign.center);
     }
   }
 
@@ -145,25 +157,18 @@ class GenerateInviteScreenState extends State<GenerateInviteScreen> {
                   : const Text('Generate Invite Code'),
             ),
             const SizedBox(height: 16),
+            
             if (generatedInviteCode != null && generatedInviteCode!.isNotEmpty) ...[
               const Text('Share this invite code:', style: TextStyle(fontSize: 16)),
-              SelectableText(generatedInviteCode!, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Center(
-                child: QrImageView(
-                  data: generatedInviteCode!,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                  ),
-                  size: 200.0,
-                ),
+              SelectableText(
+                generatedInviteCode!,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
+              Center(child: _buildQrImage()),
+              const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => _revokeInvite(generatedInviteCode!),
+                onPressed: generatedInviteCode != null ? () => _revokeInvite(generatedInviteCode!) : null,
                 child: const Text("Revoke Invite"),
               ),
             ] else ...[
@@ -171,6 +176,7 @@ class GenerateInviteScreenState extends State<GenerateInviteScreen> {
               const Text('No invite generated yet', textAlign: TextAlign.center),
             ],
             const SizedBox(height: 24),
+            
             const Text('Active Invites:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(

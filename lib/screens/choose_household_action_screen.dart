@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'household_setup_screen.dart';
+import 'join_household_screen.dart';
 
 class ChooseHouseholdActionScreen extends StatelessWidget {
   const ChooseHouseholdActionScreen({super.key});
@@ -13,18 +15,21 @@ class ChooseHouseholdActionScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildActionButton(context, 'Create Household', '/setup-household'),
+            _buildActionButton(context, 'Create Household', const HouseholdSetupScreen()),
             const SizedBox(height: 20),
-            _buildActionButton(context, 'Join Household', '/join-household'),
+            _buildActionButton(context, 'Join Household', const JoinHouseholdScreen()),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionButton(BuildContext context, String label, String route) {
+  Widget _buildActionButton(BuildContext context, String label, Widget screen) {
     return ElevatedButton(
-      onPressed: () => Navigator.pushNamedAndRemoveUntil(context, route, (route) => false),
+      onPressed: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => screen),
+      ),
       child: Text(label),
     );
   }

@@ -1,10 +1,8 @@
-// Core Flutter and Firebase packages
 import 'package:flatsync_app/screens/generate_invite_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// Firebase configuration
 import 'firebase_options.dart';
 
 // Screens
@@ -15,6 +13,7 @@ import 'screens/home_screen.dart';
 import 'screens/household_selection_screen.dart';
 import 'screens/household_setup_screen.dart';
 import 'screens/manage_household_screen.dart';
+import 'screens/join_household_screen.dart';
 import 'screens/shopping_list_screen.dart';
 import 'screens/chores_screen.dart';
 import 'screens/expense_tracker_screen.dart';
@@ -38,14 +37,20 @@ class FlatSyncApp extends StatelessWidget {
   Future<String?> _getHouseholdId() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return null; // No logged-in user
+
     try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
-      if (userDoc.exists && userDoc.data() != null) {
-        return userDoc["householdId"]; // Return household ID
+      DocumentSnapshot userDoc =
+          await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
+
+      if (!userDoc.exists || userDoc.data() == null) {
+        return null; // User does not exist in Firestore
       }
+
+      return userDoc["householdId"]; // Return household ID if exists
     } catch (e) {
       debugPrint("Error fetching household ID: $e");
     }
+
     return null; // Fallback in case of an error
   }
 
@@ -66,7 +71,21 @@ class FlatSyncApp extends StatelessWidget {
                 );
               }
               if (snapshot.hasData) {
-                return const HomeScreen(); // User is logged in
+                return FutureBuilder<String?>(
+                  future: _getHouseholdId(),
+                  builder: (context, householdSnapshot) {
+                    if (householdSnapshot.connectionState == ConnectionState.waiting) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    if (householdSnapshot.hasData && householdSnapshot.data != null) {
+                      return const HomeScreen(); // ✅ User has a household → go to home
+                    } else {
+                      return const ChooseHouseholdActionScreen(); // ❌ No household → force selection
+                    }
+                  },
+                );
               } else {
                 return const WelcomeScreen(); // User is not logged in
               }
@@ -80,6 +99,7 @@ class FlatSyncApp extends StatelessWidget {
         '/select-household': (context) => const HouseholdSelectionScreen(),
         '/setup-household': (context) => const HouseholdSetupScreen(),
         '/manage-household': (context) => const ManageHouseholdScreen(),
+        '/join-household': (context) => const JoinHouseholdScreen(),
         '/pending-invitations': (context) => const PendingInvitationsScreen(),
         '/shopping-list': (context) => const ShoppingListScreen(),
         '/chores': (context) => const ChoresScreen(),
@@ -87,7 +107,7 @@ class FlatSyncApp extends StatelessWidget {
         '/message-board': (context) => const MessageBoardScreen(),
         '/settings-page': (context) => const SettingsScreen(),
 
-        // ✅ Fixed: Fetches `householdId` before navigating to `GenerateInviteScreen`
+        // ✅ Fetches `householdId` before navigating to `GenerateInviteScreen`
         '/generate-invite': (context) {
           return FutureBuilder<String?>(
             future: _getHouseholdId(),

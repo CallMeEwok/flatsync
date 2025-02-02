@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,15 +23,40 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
+      User? user = userCredential.user;
+
+      if (user != null) {
+        // Fetch user data from Firestore
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+
+        if (!userDoc.exists || userDoc.data() == null) {
+          debugPrint("❌ User does not exist in Firestore!");
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('User data not found. Contact support.')),
+            );
+          }
+          return;
+        }
+
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final String? householdId = userData['householdId'];
+
+        if (mounted) {
+          if (householdId != null && householdId.isNotEmpty) {
+            Navigator.pushReplacementNamed(context, '/home'); // ✅ Send to Home if household exists
+          } else {
+            Navigator.pushReplacementNamed(context, '/choose-household-action'); // ❌ No household → choose
+          }
+        }
       }
     } catch (e) {
+      debugPrint("❌ Login error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Login failed: $e')),

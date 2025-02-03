@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,6 +32,14 @@ class _LoginScreenState extends State<LoginScreen> {
       User? user = userCredential.user;
 
       if (user != null) {
+        // ✅ Get new FCM Token
+        String? fcmToken = await FirebaseMessaging.instance.getToken();
+
+        // ✅ Store or update the token in Firestore
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'fcmToken': fcmToken,
+        });
+
         // Fetch user data from Firestore
         DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 

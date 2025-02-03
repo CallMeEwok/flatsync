@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -31,24 +32,29 @@ class _SignupScreenState extends State<SignupScreen> {
         password: _passwordController.text.trim(),
       );
 
-      // Add the user to Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'householdId': null, // Add householdId as null for new users
-        'role': 'Member', // Default role for new users
-      });
+      User? user = userCredential.user;
 
-      // Show success and navigate to the household selection process
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signup successful!')),
-        );
-        Navigator.pushReplacementNamed(context, '/choose-household-action'); // Redirect to household selection
+      if (user != null) {
+        // ✅ Get FCM Token
+        String? fcmToken = await FirebaseMessaging.instance.getToken();
+
+        // ✅ Add the user to Firestore, including FCM Token
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'name': _nameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'createdAt': FieldValue.serverTimestamp(),
+          'householdId': null, // Add householdId as null for new users
+          'role': 'Member', // Default role for new users
+          'fcmToken': fcmToken, // ✅ Store FCM Token
+        });
+
+        // Show success and navigate to the household selection process
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Signup successful!')),
+          );
+          Navigator.pushReplacementNamed(context, '/choose-household-action'); // Redirect to household selection
+        }
       }
     } catch (e) {
       // Handle errors

@@ -2,6 +2,7 @@ import 'package:flatsync_app/screens/generate_invite_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'firebase_options.dart';
 
@@ -28,7 +29,58 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // ✅ Initialize Firebase Messaging in the background
+  setupFirebaseMessaging();
+
   runApp(const FlatSyncApp());
+}
+
+void setupFirebaseMessaging() {
+  FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+  // Request permission for push notifications
+  messaging.requestPermission(
+    alert: true,
+    announcement: false,
+    badge: true,
+    carPlay: false,
+    criticalAlert: false,
+    provisional: false,
+    sound: true,
+  );
+
+  // Handle FCM token changes and update Firestore
+  messaging.onTokenRefresh.listen((newToken) async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'fcmToken': newToken,
+      });
+    }
+  });
+
+  // ✅ Fetch and store FCM token asynchronously (won't block UI)
+  messaging.getToken().then((fcmToken) async {
+    debugPrint("📌 FCM Token: $fcmToken");
+    
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'fcmToken': fcmToken,
+      });
+    }
+  });
+
+  // ✅ Handle foreground notifications
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    debugPrint("📩 Foreground Message: ${message.notification?.title} - ${message.notification?.body}");
+  });
+
+  // ✅ Handle when a user taps a notification & app opens
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    debugPrint("🔗 Notification Clicked: ${message.data}");
+  });
 }
 
 class FlatSyncApp extends StatelessWidget {

@@ -56,19 +56,29 @@ class MessageService {
   }
 
   /// Fetches all messages for the current user's household
-  Stream<List<Map<String, dynamic>>> getMessages() async* {
-    final householdId = await getHouseholdId();
-    if (householdId == null) yield [];
+  /// Fetches all messages for the current user's household
+Stream<List<Map<String, dynamic>>> getMessages() async* {
+  final householdId = await getHouseholdId();
+  print("Retrieved Household ID: $householdId"); // Debug log
 
-    yield* _firestore
-        .collection('households')
-        .doc(householdId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
+  if (householdId == null) {
+    print("No household ID found, returning empty list.");
+    yield [];
+    return;
   }
+
+  yield* _firestore
+      .collection('households')
+      .doc(householdId)
+      .collection('messages')
+      .orderBy('timestamp', descending: true)
+      .snapshots()
+      .map((snapshot) {
+        print("Messages retrieved: ${snapshot.docs.length}"); // Debug log
+        return snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList();
+      });
+}
+
 
   /// Deletes a message from Firestore (only if the user sent it)
   Future<void> deleteMessage(String messageId) async {

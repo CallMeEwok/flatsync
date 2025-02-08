@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../services/chore_service.dart'; // ✅ Ensure this file exists!
+import '../services/chore_service.dart';
+import '../services/household_service.dart'; // ✅ Ensure this file exists!
 
 class ChoresScreen extends StatefulWidget {
   const ChoresScreen({super.key});
@@ -10,18 +11,36 @@ class ChoresScreen extends StatefulWidget {
 
 class _ChoresScreenState extends State<ChoresScreen> {
   final ChoreService _choreService = ChoreService();
+  final HouseholdService _householdService = HouseholdService();
   final TextEditingController _taskController = TextEditingController();
-  final TextEditingController _assigneeController = TextEditingController();
+
+  String? _selectedAssigneeUid;
+  List<Map<String, String>> _householdMembers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHouseholdMembers();
+  }
+
+  void _fetchHouseholdMembers() async {
+    final members = await _householdService.getHouseholdMembers();
+    setState(() {
+      _householdMembers = members;
+    });
+  }
 
   void _addChore() async {
-    if (_taskController.text.isNotEmpty && _assigneeController.text.isNotEmpty) {
+    if (_taskController.text.isNotEmpty && _selectedAssigneeUid != null) {
       try {
         await _choreService.addChore(
           task: _taskController.text.trim(),
-          assignee: _assigneeController.text.trim(),
+          assigneeUid: _selectedAssigneeUid!,
         );
         _taskController.clear();
-        _assigneeController.clear();
+        setState(() {
+          _selectedAssigneeUid = null;
+        });
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -59,12 +78,23 @@ class _ChoresScreenState extends State<ChoresScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _assigneeController,
+                DropdownButtonFormField<String>(
+                  value: _selectedAssigneeUid,
+                  hint: const Text('Assign to'),
                   decoration: const InputDecoration(
-                    labelText: 'Assign to',
                     border: OutlineInputBorder(),
                   ),
+                  items: _householdMembers.map((member) {
+                    return DropdownMenuItem(
+                      value: member['uid'],
+                      child: Text(member['name'] ?? 'Unknown'),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedAssigneeUid = newValue;
+                    });
+                  },
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton(
@@ -94,7 +124,7 @@ class _ChoresScreenState extends State<ChoresScreen> {
                     final chore = chores[index];
 
                     final String task = chore['task'] ?? 'Unknown Task';
-                    final String assignee = chore['assignee'] ?? 'Unknown';
+                    final String assignee = chore['assignedToName'] ?? 'Unknown';
                     final bool completed = chore['completed'] ?? false;
 
                     return ListTile(

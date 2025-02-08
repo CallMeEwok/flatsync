@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/shopping_list_service.dart';
 
 class ShoppingListScreen extends StatefulWidget {
   const ShoppingListScreen({super.key});
@@ -10,6 +11,7 @@ class ShoppingListScreen extends StatefulWidget {
 }
 
 class _ShoppingListScreenState extends State<ShoppingListScreen> {
+  final ShoppingListService _shoppingListService = ShoppingListService();
   final TextEditingController _itemController = TextEditingController();
   String? _householdId;
   CollectionReference? _shoppingList;
@@ -45,8 +47,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     }
   }
 
+  /// ✅ Adds an item & sends notification
   void _addItem(String name) async {
-    if (name.trim().isEmpty || _shoppingList == null) return;
+    if (name.trim().isEmpty || _shoppingList == null || _householdId == null) return;
 
     String formattedName = name.trim().toLowerCase();
 
@@ -64,26 +67,49 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       });
 
       _itemController.clear();
+
+      // ✅ Send Notification
+      await _shoppingListService.sendNotification(
+        householdId: _householdId!,
+        title: "🛒 New Shopping Item Added",
+        message: "$formattedName has been added to the shopping list.",
+      );
     } catch (e) {
       debugPrint("❌ Error adding item: $e");
     }
   }
 
-  void _deleteItem(String id) async {
-    if (_shoppingList == null) return;
+  /// ✅ Deletes an item & sends notification
+  void _deleteItem(String id, String itemName) async {
+    if (_shoppingList == null || _householdId == null) return;
 
     try {
       await _shoppingList!.doc(id).delete();
+
+      // ✅ Send Notification
+      await _shoppingListService.sendNotification(
+        householdId: _householdId!,
+        title: "🗑️ Item Removed",
+        message: "$itemName has been removed from the shopping list.",
+      );
     } catch (e) {
       debugPrint("❌ Error deleting item: $e");
     }
   }
 
-  void _toggleCompleted(String id, bool currentValue) async {
-    if (_shoppingList == null) return;
+  /// ✅ Toggles completed status & sends notification
+  void _toggleCompleted(String id, bool currentValue, String itemName) async {
+    if (_shoppingList == null || _householdId == null) return;
 
     try {
       await _shoppingList!.doc(id).update({'completed': !currentValue});
+
+      // ✅ Send Notification
+      await _shoppingListService.sendNotification(
+        householdId: _householdId!,
+        title: "✅ Item Completed",
+        message: "$itemName has been marked as completed.",
+      );
     } catch (e) {
       debugPrint("❌ Error toggling completion status: $e");
     }
@@ -94,7 +120,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Shopping List')),
       body: _shoppingList == null
-          ? const Center(child: CircularProgressIndicator()) // ✅ Prevents accessing before initialized
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
                 Padding(
@@ -108,7 +134,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                             labelText: 'Add an item',
                             border: OutlineInputBorder(),
                           ),
-                          onSubmitted: (text) => _addItem(text), // ✅ Fix: Call _addItem properly
+                          onSubmitted: (text) => _addItem(text),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -138,8 +164,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                           final item = items[index];
                           final itemName = item['name'] ?? "Unknown Item";
                           final isCompleted = item['completed'] ?? false;
-                          
-                          // ✅ Fix: Ensure `createdAt` is safely converted
                           Timestamp? createdAtTimestamp = item['createdAt'] as Timestamp?;
                           DateTime createdAt = createdAtTimestamp?.toDate() ?? DateTime.now();
 
@@ -158,11 +182,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                                   icon: Icon(
                                     isCompleted ? Icons.check_box : Icons.check_box_outline_blank,
                                   ),
-                                  onPressed: () => _toggleCompleted(item.id, isCompleted),
+                                  onPressed: () => _toggleCompleted(item.id, isCompleted, itemName),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete),
-                                  onPressed: () => _deleteItem(item.id),
+                                  onPressed: () => _deleteItem(item.id, itemName),
                                 ),
                               ],
                             ),

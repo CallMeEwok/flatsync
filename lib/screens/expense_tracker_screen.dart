@@ -12,44 +12,55 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
   final ExpenseService _expenseService = ExpenseService();
   final TextEditingController _expenseNameController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
-  final TextEditingController _paidByController = TextEditingController();
-  final TextEditingController _splitBetweenController = TextEditingController();
+
+  List<Map<String, dynamic>> _householdMembers = [];
+  final Map<String, double> _selectedSplit = {}; // Stores selected users and their share %
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHouseholdMembers();
+  }
+
+  Future<void> _loadHouseholdMembers() async {
+    final members = await _expenseService.getHouseholdMembers();
+    setState(() {
+      _householdMembers = members;
+    });
+  }
 
   void _addExpense() async {
     if (_expenseNameController.text.isNotEmpty &&
         _amountController.text.isNotEmpty &&
-        _paidByController.text.isNotEmpty &&
-        _splitBetweenController.text.isNotEmpty) {
+        _selectedSplit.isNotEmpty) {
       try {
         await _expenseService.addExpense(
           name: _expenseNameController.text.trim(),
           amount: double.tryParse(_amountController.text.trim()) ?? 0.0,
-          paidBy: _paidByController.text.trim(),
-          splitBetween: _splitBetweenController.text
-              .trim()
-              .split(',')
-              .map((name) => name.trim())
+          splitBetween: _selectedSplit.entries
+              .map((entry) => {'uid': entry.key, 'share': entry.value})
               .toList(),
         );
         _expenseNameController.clear();
         _amountController.clear();
-        _paidByController.clear();
-        _splitBetweenController.clear();
+        setState(() {
+          _selectedSplit.clear();
+        });
 
-        if (!mounted) return; // ✅ Fix: Check if widget is still mounted
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Expense added successfully!')),
         );
       } catch (e) {
-        if (!mounted) return; // ✅ Fix: Check if widget is still mounted
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error adding expense: $e')),
         );
       }
     } else {
-      if (!mounted) return; // ✅ Fix: Check if widget is still mounted
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields.')),
+        const SnackBar(content: Text('Please complete all fields.')),
       );
     }
   }
@@ -81,21 +92,7 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _paidByController,
-                  decoration: const InputDecoration(
-                    labelText: 'Paid By',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _splitBetweenController,
-                  decoration: const InputDecoration(
-                    labelText: 'Split Between (comma-separated)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
+                _buildSplitDropdown(),
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: _addExpense,
@@ -123,40 +120,21 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
                   itemBuilder: (context, index) {
                     final expense = expenses[index];
 
-                    // ✅ Fix: Use null-safe values with defaults
                     final String name = expense['name'] ?? 'Unknown Expense';
                     final double amount =
                         (expense['amount'] as num?)?.toDouble() ?? 0.0;
-                    final String paidBy = expense['paidBy'] ?? 'Unknown';
-                    final List<String> splitBetween =
-                        (expense['splitBetween'] as List<dynamic>?)
-                                ?.map((e) => e.toString())
-                                .toList() ??
-                            [];
-                    final bool isPaid = expense['paid'] ?? false;
+                    final List<dynamic> splitBetween =
+                        expense['splitBetween'] ?? [];
 
                     return ListTile(
                       title: Text(name),
                       subtitle: Text(
-                          'Paid by: $paidBy\nAmount: \$${amount.toStringAsFixed(2)}\nSplit between: ${splitBetween.join(', ')}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Checkbox(
-                            value: isPaid,
-                            onChanged: (bool? newValue) {
-                              if (newValue != null) {
-                                _expenseService
-                                    .markAsPaid(expense['id'], newValue);
-                              }
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () =>
-                                _expenseService.deleteExpense(expense['id']),
-                          ),
-                        ],
+                        'Amount: \$${amount.toStringAsFixed(2)}\nSplit: ${splitBetween.map((s) => '${s['name']}: ${s['share']}%').join(', ')}',
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () =>
+                            _expenseService.deleteExpense(expense['id']),
                       ),
                     );
                   },
@@ -166,6 +144,26 @@ class _ExpenseTrackerScreenState extends State<ExpenseTrackerScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSplitDropdown() {
+    return Column(
+      children: _householdMembers.map((member) {
+        return CheckboxListTile(
+          title: Text(member['name']),
+          value: _selectedSplit.containsKey(member['uid']),
+          onChanged: (bool? isSelected) {
+            setState(() {
+              if (isSelected == true) {
+                _selectedSplit[member['uid']] = 50.0; // Default split (to be changed manually)
+              } else {
+                _selectedSplit.remove(member['uid']);
+              }
+            });
+          },
+        );
+      }).toList(),
     );
   }
 }

@@ -5,26 +5,31 @@ class ChoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// ✅ Add chore with `assigneeUid`
-  Future<void> addChore({required String task, required String assigneeUid}) async {
+    /// ✅ Add chore with `assigneeUid`
+  Future<void> addChore({
+    required String task,
+    required String assigneeUid,
+    required DateTime dueDate, // ✅ Now accepting dueDate
+  }) async {
     final User? user = _auth.currentUser;
     if (user == null) throw Exception("User not authenticated");
 
-    final String userId = user.uid; // ✅ This is always available, no need for nullable `?`
+    final String userId = user.uid;
     final userDoc = await _firestore.collection('users').doc(userId).get();
     final householdId = userDoc.data()?['householdId'];
     if (householdId == null) throw Exception("Household ID not found");
 
     // Fetch assignee's name
     final assigneeDoc = await _firestore.collection('users').doc(assigneeUid).get();
-    final String assigneeName = assigneeDoc.data()?['name'] ?? 'Unknown'; // ✅ Non-nullable
+    final String assigneeName = assigneeDoc.data()?['name'] ?? 'Unknown';
 
     await _firestore.collection('households').doc(householdId).collection('chores').add({
       'task': task,
-      'assignedTo': assigneeUid, // ✅ Storing UID instead of name
-      'assignedToName': assigneeName, // ✅ Also store name for UI
+      'assignedTo': assigneeUid,
+      'assignedToName': assigneeName,
       'completed': false,
-      'createdBy': userId, // ✅ Ensuring task creator is stored
+      'createdBy': userId,
+      'dueDate': Timestamp.fromDate(dueDate), // ✅ Store dueDate in Firestore
       'timestamp': FieldValue.serverTimestamp(),
     });
   }

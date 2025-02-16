@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_print
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ShoppingListService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -37,6 +38,7 @@ class ShoppingListService {
       'title': title,
       'message': message,
       'timestamp': FieldValue.serverTimestamp(),
+      'userId': FirebaseAuth.instance.currentUser?.uid,
     });
 
     // ✅ Call Firebase Cloud Messaging to send notifications
@@ -46,7 +48,7 @@ class ShoppingListService {
   }
 
   /// ✅ Calls Firebase Cloud Messaging API
-  Future<void> _sendFCMNotification(String token, String title, String body) async {
+    Future<void> _sendFCMNotification(String token, String title, String body) async {
     final data = {
       "to": token,
       "notification": {
@@ -58,13 +60,8 @@ class ShoppingListService {
     };
 
     try {
-      final response = await FirebaseFirestore.instance
-          .collection('fcmRequests')
-          .add({"payload": data});
-
-      // ignore: duplicate_ignore
-      // ignore: avoid_print
-      print("📤 Notification sent: $response");
+      print("📤 Sending Notification: $data");
+      // Make HTTP request to Firebase Cloud Messaging here
     } catch (e) {
       print("❌ Error sending FCM notification: $e");
     }

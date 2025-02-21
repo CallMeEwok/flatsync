@@ -1,43 +1,53 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sendMessageNotification = exports.sendChoreReminders = void 0;
-const firestore_1 = require("firebase-functions/v2/firestore");
-const scheduler_1 = require("firebase-functions/v2/scheduler");
-const app_1 = require("firebase-admin/app");
-const firestore_2 = require("firebase-admin/firestore");
-const messaging_1 = require("firebase-admin/messaging");
+
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { initializeApp } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const { getMessaging } = require("firebase-admin/messaging");
 
 // ✅ Initialize Firebase Admin SDK
-(0, app_1.initializeApp)();
-const db = (0, firestore_2.getFirestore)();
-const messaging = (0, messaging_1.getMessaging)();
+initializeApp();
+const db = getFirestore();
+const messaging = getMessaging();
 
-// ✅ Cloud Function to send notifications when a new message is added
-exports.sendMessageNotification = (0, firestore_1.onDocumentCreated)(
-    "households/{householdId}/messages/{messageId}",
+// ✅ Force Firestore to Always Use SSL
+db.settings({ host: "firestore.googleapis.com", ssl: true });
+
+// ✅ Cloud Function to send notifications for all services\\
+exports.sendMessageNotification = onDocumentCreated(
+    "households/{householdId}/notifications/{notificationId}",
     async (event) => {
-        var _a;
-        const messageData = (_a = event.data) === null || _a === void 0 ? void 0 : _a.data();
-        if (!messageData) return;
+        const notificationData = event.data?.data();
+        if (!notificationData) return;
 
         const householdId = event.params.householdId;
-        const senderName = messageData.senderName;
-        const content = messageData.content;
+        const title = notificationData.title;
+        const body = notificationData.body;
+        const senderId = notificationData.senderId; // Prevent sender from receiving their own notification
 
-        // ✅ Fetch all users in the household
-        const usersSnapshot = await db.collection("users").where("householdId", "==", householdId).get();
+        // ✅ Fetch all users in the household (EXCEPT the sender)
+        const usersSnapshot = await db
+            .collection("users")
+            .where("householdId", "==", householdId)
+            .get();
+
         const tokens = [];
         usersSnapshot.forEach((userDoc) => {
-            const fcmToken = userDoc.data().fcmToken;
-            if (fcmToken) tokens.push(fcmToken);
+            const userData = userDoc.data();
+            if (userData.fcmToken && userDoc.id !== senderId) {
+                tokens.push(userData.fcmToken);
+            }
         });
 
+        // ✅ Send Push Notification if tokens exist
         if (tokens.length > 0) {
-            // ✅ Send push notification
             const payload = {
                 notification: {
-                    title: `New Message from ${senderName}`,
-                    body: content,
+                    title: title,
+                    body: body,
                 },
                 tokens,
             };
@@ -47,7 +57,7 @@ exports.sendMessageNotification = (0, firestore_1.onDocumentCreated)(
 );
 
 // ✅ Scheduled Function to Send Chore Due Date Reminders
-exports.sendChoreReminders = (0, scheduler_1.onSchedule)("every 1 hours", async () => {
+exports.sendChoreReminders = onSchedule("every 1 hours", async () => {
     console.log("⏰ Running scheduled task to check for chore reminders...");
 
     const now = new Date();
@@ -72,7 +82,6 @@ exports.sendChoreReminders = (0, scheduler_1.onSchedule)("every 1 hours", async 
 
             for (const choreDoc of choresSnapshot.docs) {
                 const choreData = choreDoc.data();
-                const choreId = choreDoc.id;
                 const task = choreData.task;
                 const dueDate = choreData.dueDate.toDate();
                 const assignedTo = choreData.assignedTo;

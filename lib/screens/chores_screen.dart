@@ -168,13 +168,25 @@ class _ChoresScreenState extends State<ChoresScreen> {
                     final bool completed = chore['completed'] ?? false;
                     final Timestamp? dueTimestamp = chore['dueDate'];
                     final DateTime? dueDate = dueTimestamp?.toDate();
-                    final String dueDateText = dueDate != null
-                        ? DateFormat.yMMMd().format(dueDate)
-                        : 'No due date';
+                    
+                    final bool isOverdue = dueDate != null && dueDate.isBefore(DateTime.now());
 
                     return ListTile(
-                      title: Text(task),
-                      subtitle: Text('Assigned to: $assignee\nDue: $dueDateText'),
+                      title: Text(
+                        task,
+                        style: TextStyle(
+                          color: isOverdue ? Colors.red : Colors.black, // ✅ Red for overdue
+                          fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Assigned to: $assignee\nDue: ${dueDate != null ? DateFormat.yMMMd().format(dueDate) : "No due date"}'
+                        '${isOverdue ? " (Overdue!)" : ""}', // ✅ Add "Overdue!" label
+                        style: TextStyle(
+                          color: isOverdue ? Colors.red : Colors.black,
+                          fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
                       leading: Checkbox(
                         value: completed,
                         onChanged: (bool? newValue) {
